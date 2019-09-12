@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -e
+set -x
 
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
@@ -18,7 +19,7 @@ function copy_image_to_cluster() {
     local build_image=$1
     local final_image=$2
     docker tag "${build_image}" "${final_image}"
-    echo "Tagged image: ${final_image}"
+    echo "Tagged image: ${final_image}" >&2
 }
 
 case "${1:-}" in
@@ -41,6 +42,15 @@ case "${1:-}" in
     [ "$2" ] && ns=$2 || ns="${DEFAULT_NAMESPACE}"
     echo "installing helm package(s) into \"$ns\" namespace"
     ${HELM} install --name ${PROJECT_NAME} --namespace ${ns} ${projectdir}/cluster/charts/${PROJECT_NAME} --set image.pullPolicy=Never,imagePullSecrets=''
+    ;;
+  helm-template)
+    echo " copying image for helm" >&2
+    helm_tag="$(cat _output/version)"
+    copy_image_to_cluster ${BUILD_IMAGE} "${DOCKER_REGISTRY}/${PROJECT_NAME}:${helm_tag}"
+
+    [ "$2" ] && ns=$2 || ns="${DEFAULT_NAMESPACE}"
+    echo "installing helm package(s) into \"$ns\" namespace" >&2
+    ${HELM} template --name ${PROJECT_NAME} --namespace ${ns} ${projectdir}/cluster/charts/${PROJECT_NAME} --set image.pullPolicy=Never,imagePullSecrets=''
     ;;
   helm-upgrade)
     echo "copying image for helm"
